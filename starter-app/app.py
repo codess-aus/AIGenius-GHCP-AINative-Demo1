@@ -51,8 +51,14 @@ def load_tasks() -> list[dict]:
         file does not exist or cannot be parsed.
     """
     try:
+        # get_storage() re-reads the environment/`.env` file and decides
+        # between AzureTableStorage and LocalStorage each time it's called,
+        # so switching backends never requires restarting between calls.
         return get_storage(TASKS_FILE).load()
     except StorageConnectionError as exc:
+        # Surface a friendly, single-line error instead of letting an Azure
+        # SDK stack trace leak to the user, and exit non-zero so scripts
+        # calling this CLI can detect the failure.
         console.print(f"[red]Error: {exc}[/red]")
         sys.exit(1)
 
@@ -66,6 +72,8 @@ def save_tasks(tasks: list[dict]) -> None:
     try:
         get_storage(TASKS_FILE).save(tasks)
     except StorageConnectionError as exc:
+        # Same fail-safe behaviour as load_tasks(): report clearly and
+        # exit(1) rather than crashing with a raw traceback.
         console.print(f"[red]Error: {exc}[/red]")
         sys.exit(1)
 
