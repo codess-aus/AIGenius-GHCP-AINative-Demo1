@@ -16,7 +16,6 @@ Usage:
     python app.py stats
 """
 
-import json
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -25,6 +24,8 @@ import click
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
+
+from storage import StorageConnectionError, get_storage
 
 TASKS_FILE = Path(__file__).resolve().with_name("tasks.json")
 
@@ -40,33 +41,41 @@ console = Console()
 
 
 def load_tasks() -> list[dict]:
-    """Load tasks from the JSON storage file.
+    """Load tasks from the configured storage backend.
+
+    Uses Azure Table Storage when AZURE_STORAGE_CONNECTION_STRING is set,
+    otherwise falls back to the local JSON file at TASKS_FILE.
 
     Returns:
-        A list of task dictionaries. Returns an empty list if the file
-        does not exist or cannot be parsed.
+        A list of task dictionaries. Returns an empty list if the local
+        file does not exist or cannot be parsed.
     """
-    if not TASKS_FILE.exists():
-        return []
     try:
-        with TASKS_FILE.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        if not isinstance(data, list):
-            raise ValueError("tasks file must contain a JSON array")
-        return data
-    except (json.JSONDecodeError, OSError, ValueError):
-        console.print("[red]Warning: Could not read tasks file. Starting fresh.[/red]")
-        return []
+        # get_storage() re-reads the environment/`.env` file and decides
+        # between AzureTableStorage and LocalStorage each time it's called,
+        # so switching backends never requires restarting between calls.
+        return get_storage(TASKS_FILE).load()
+    except StorageConnectionError as exc:
+        # Surface a friendly, single-line error instead of letting an Azure
+        # SDK stack trace leak to the user, and exit non-zero so scripts
+        # calling this CLI can detect the failure.
+        console.print(f"[red]Error: {exc}[/red]")
+        sys.exit(1)
 
 
 def save_tasks(tasks: list[dict]) -> None:
-    """Persist tasks to the JSON storage file.
+    """Persist tasks to the configured storage backend.
 
     Args:
         tasks: The list of task dictionaries to save.
     """
-    with TASKS_FILE.open("w", encoding="utf-8") as f:
-        json.dump(tasks, f, indent=2)
+    try:
+        get_storage(TASKS_FILE).save(tasks)
+    except StorageConnectionError as exc:
+        # Same fail-safe behaviour as load_tasks(): report clearly and
+        # exit(1) rather than crashing with a raw traceback.
+        console.print(f"[red]Error: {exc}[/red]")
+        sys.exit(1)
 
 
 def next_id(tasks: list[dict]) -> int:

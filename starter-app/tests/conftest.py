@@ -12,11 +12,15 @@ import app
 def isolated_tasks_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point TASKS_FILE at a temporary file for each test.
 
+    Also ensures AZURE_STORAGE_CONNECTION_STRING is unset so tests default
+    to local JSON storage and never make real Azure API calls.
+
     Returns:
         The Path to the temporary tasks file.
     """
     tasks_file = tmp_path / "tasks.json"
     monkeypatch.setattr(app, "TASKS_FILE", tasks_file)
+    monkeypatch.delenv("AZURE_STORAGE_CONNECTION_STRING", raising=False)
     return tasks_file
 
 
