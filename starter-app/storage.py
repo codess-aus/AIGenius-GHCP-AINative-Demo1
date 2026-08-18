@@ -231,7 +231,11 @@ def get_storage(local_path: Path) -> TaskStorage:
     # This lets contributors keep AZURE_STORAGE_CONNECTION_STRING out of
     # source control while still making it available at runtime.
     load_dotenv()
-    connection_string = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
+    # Strip before checking truthiness so a whitespace-only value (e.g. an
+    # accidentally blank .env entry) is treated the same as "unset" and
+    # falls back to local storage, rather than being passed to the Azure
+    # SDK as a bogus connection string.
+    connection_string = os.environ.get("AZURE_STORAGE_CONNECTION_STRING", "").strip()
     if connection_string:
         # Cloud-backed storage: enables sharing tasks across machines.
         return AzureTableStorage(connection_string)

@@ -152,6 +152,14 @@ class TestGetStorage:
         backend = get_storage(tmp_path / "tasks.json")
         assert isinstance(backend, LocalStorage)
 
+    def test_returns_local_storage_when_env_var_is_whitespace_only(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("AZURE_STORAGE_CONNECTION_STRING", "   ")
+        monkeypatch.setattr(storage, "load_dotenv", lambda: None)
+        backend = get_storage(tmp_path / "tasks.json")
+        assert isinstance(backend, LocalStorage)
+
     def test_returns_azure_storage_when_env_var_set(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
